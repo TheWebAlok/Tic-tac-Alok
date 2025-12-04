@@ -1,0 +1,809 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Tic Tac Toe — Advanced</title>
+<style>
+  :root{
+    --bg:#0f1724;
+    --card:#0b1220;
+    --panel:#071026;
+    --muted:#9ca3af;
+    --accent:#06b6d4;
+    --win-green:#00e676;
+    --draw-yellow:#ffd54f;
+    --cell-size:96px;
+    --glass: rgba(255,255,255,0.04);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:18px;
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    color:#e6eef6;
+    background: linear-gradient(180deg,#021428 0%, #041426 100%);
+    display:flex;flex-direction:column;align-items:center;
+  }
+  header{display:flex;gap:16px;align-items:center;width:100%;max-width:1100px;margin-bottom:12px;}
+  h1{margin:0;font-size:20px}
+  .controls{
+    background:var(--panel);padding:12px;border-radius:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+    box-shadow:0 6px 20px rgba(2,6,23,0.6);
+  }
+  select,input,button{padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:inherit;}
+  button{cursor:pointer}
+  #status{min-width:180px;padding:8px 10px;border-radius:8px;background:var(--glass);font-weight:600;color:var(--muted);}
+  #main{display:flex;gap:18px;align-items:flex-start;width:100%;max-width:1100px;}
+  #left{flex:1}
+  #right{width:320px}
+  /* Board area */
+  #boardWrap{padding:16px;border-radius:14px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));box-shadow:0 10px 30px rgba(2,6,23,0.45)}
+  #board{
+    display:grid;grid-gap:12px;transition:all .5s ease;opacity:0;transform:translateY(18px);
+    will-change: transform, opacity;
+  }
+  .cell{
+    width:var(--cell-size);height:var(--cell-size);display:flex;align-items:center;justify-content:center;
+    border-radius:12px;background:linear-gradient(180deg,#0c1830,#071024);font-size:46px;cursor:pointer;border:1px solid rgba(255,255,255,0.04);
+    box-shadow:0 6px 18px rgba(2,6,23,0.6);
+    position:relative;overflow:visible;
+    transition:transform .18s ease, box-shadow .18s ease, background .2s ease;
+    user-select:none;
+  }
+  .cell:hover{transform:translateY(-6px) scale(1.02)}
+  .cell.disabled{cursor:default;opacity:.96;transform:none}
+  .win-cell{background:linear-gradient(90deg,var(--win-green), #00c853) !important;color:#021018 !important;box-shadow:0 12px 40px rgba(0,230,118,0.18) !important}
+  .draw-cell{background:linear-gradient(90deg,var(--draw-yellow), #ffd740) !important;color:#021018 !important}
+  .almost{outline:3px dashed rgba(255,255,255,0.08);box-shadow:0 6px 18px rgba(255,255,255,0.02) inset}
+  /* X/O drawing animation (pseudo) */
+  .xo{transition:transform .28s ease, opacity .28s ease; transform:scale(.88); opacity:0}
+  .xo.visible{transform:scale(1);opacity:1}
+  /* controls right */
+  .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:12px;border-radius:12px;margin-bottom:12px}
+  .small{font-size:13px;color:var(--muted)}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  #timerBar{height:8px;background:rgba(255,255,255,0.05);border-radius:8px;overflow:hidden;width:100%}
+  #timerProgress{height:100%;width:0%;background:linear-gradient(90deg,#06b6d4,#4f46e5);transition:width .15s linear}
+  .controls button.secondary{background:transparent;border:1px solid rgba(255,255,255,0.06)}
+  .small-btn{padding:6px 8px;border-radius:8px}
+  /* replay controls */
+  .replay-controls{display:flex;gap:8px;align-items:center;margin-top:8px}
+  .leaderboard-list{max-height:200px;overflow:auto;margin-top:8px;padding-right:8px}
+  .muted{color:var(--muted)}
+  /* particle canvas */
+  #fxCanvas{position:absolute;left:0;top:0;pointer-events:none;z-index:40}
+  /* mobile tweaks */
+  @media (max-width:920px){
+    #main{flex-direction:column}
+    #right{width:100%}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Tic-Tac-Toe — Advanced (Timer / Replay / Voice / Multi-board)</h1>
+</header>
+
+<div class="controls" role="region" aria-label="Game controls">
+  <label class="small">Board:
+    <select id="boardSize">
+      <option value="3">3 × 3</option>
+      <option value="4">4 × 4</option>
+      <option value="5">5 × 5</option>
+    </select>
+  </label>
+
+  <label class="small">You:
+    <select id="humanSymbol"><option>X</option><option>O</option></select>
+  </label>
+
+  <label class="small">Difficulty:
+    <select id="difficulty"><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard" selected>Hard</option></select>
+  </label>
+
+  <button id="startBtn" title="Start new game">Start</button>
+  <button id="voiceBtn" class="secondary small-btn" title="Enable voice commands">Voice</button>
+  <button id="undoBtn" class="secondary small-btn" title="Undo last human move">Undo</button>
+  <button id="fullUndoBtn" class="secondary small-btn" title="Undo entire history">Full Undo</button>
+
+  <span id="status">Press Start</span>
+</div>
+
+<div id="main">
+  <div id="left">
+    <div id="boardWrap">
+      <div id="board" aria-label="Game board"></div>
+      <div style="margin-top:10px;display:flex;gap:10px;align-items:center;">
+        <div id="timerBar" style="flex:1"><div id="timerProgress"></div></div>
+        <div class="small muted" id="timerLabel">4s</div>
+      </div>
+      <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+        <button id="replayPlay" class="small-btn">▶ Play</button>
+        <button id="replayPause" class="small-btn">❚❚ Pause</button>
+        <button id="replayStep" class="small-btn">Step</button>
+        <button id="resetBtn" class="small-btn secondary">Reset Stats</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="right">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div><strong>Game info</strong></div>
+        <div class="small muted">10s / move</div>
+      </div>
+      <div style="margin-top:8px" class="small">Status: <span id="miniStatus">Idle</span></div>
+      <div style="margin-top:12px">
+        <div class="small">Leaderboard</div>
+        <div class="leaderboard-list" id="leaderboard"></div>
+        <div style="margin-top:8px" class="small">Best streak: <span id="bestStreak">0</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="small">Visual hints:</div>
+      <ul class="small muted">
+        <li>Green highlight = win</li>
+        <li>Yellow highlight = draw</li>
+        <li>Dashed outline = "almost" win / pattern</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="small">Voice commands:</div>
+      <div class="small muted">
+        "top left", "center", "bottom right", "start", "undo", "replay"
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- canvas for particles -->
+<canvas id="fxCanvas"></canvas>
+
+<script>
+/* -----------------------------
+   Utilities & State
+   ----------------------------- */
+const WIN_LINES = []; // dynamic per board-size
+let boardSize = 3;
+let winLen = 3;
+let board = [];
+let human = 'X', ai = 'O', current = 'X';
+let difficulty = 'hard';
+let statusEl = document.getElementById('status');
+let miniStatus = document.getElementById('miniStatus');
+let boardEl = document.getElementById('board');
+let timerProgress = document.getElementById('timerProgress');
+let timerLabel = document.getElementById('timerLabel');
+let timerDuration = 10.0; // seconds
+let timerRemaining = timerDuration;
+let timerInterval = null;
+let gameOver = false;
+let moveHistory = []; // {player, idx}
+let replayTimer = null;
+let replayIndex = 0;
+let isReplaying = false;
+let bestStreak = 0;
+let currentStreak = 0;
+let stats = {human:0, ai:0, draw:0, games:0};
+let voiceActive = false;
+let recognition = null;
+
+/* canvas for particles */
+const fxCanvas = document.getElementById('fxCanvas');
+const fxCtx = fxCanvas.getContext('2d');
+resizeFX();
+window.addEventListener('resize', resizeFX);
+
+/* initialize from localStorage */
+loadStats();
+
+/* -----------------------------
+   Board helper functions
+   ----------------------------- */
+function makeWinLines(n, k){
+  // produce all winning lines for n x n board with length k (rows, cols, diagonals)
+  const lines = [];
+  // rows
+  for (let r=0;r<n;r++){
+    for (let c=0;c<=n-k;c++){
+      const line = [];
+      for (let i=0;i<k;i++) line.push(r*n + c + i);
+      lines.push(line);
+    }
+  }
+  // cols
+  for (let c=0;c<n;c++){
+    for (let r=0;r<=n-k;r++){
+      const line=[];
+      for (let i=0;i<k;i++) line.push((r+i)*n + c);
+      lines.push(line);
+    }
+  }
+  // diag down-right
+  for (let r=0;r<=n-k;r++){
+    for (let c=0;c<=n-k;c++){
+      const line=[];
+      for (let i=0;i<k;i++) line.push((r+i)*n + (c+i));
+      lines.push(line);
+    }
+  }
+  // diag up-right
+  for (let r=k-1;r<n;r++){
+    for (let c=0;c<=n-k;c++){
+      const line=[];
+      for (let i=0;i<k;i++) line.push((r-i)*n + (c+i));
+      lines.push(line);
+    }
+  }
+  return lines;
+}
+
+function resetBoard(){
+  board = Array(boardSize*boardSize).fill(null);
+  moveHistory = [];
+  gameOver = false;
+  replayIndex = 0;
+  isReplaying = false;
+  stopReplay();
+  renderBoard(true);
+  resetTimer();
+}
+
+/* -----------------------------
+   Rendering / Animations
+   ----------------------------- */
+function renderBoard(initial=false){
+  // grid template
+  document.documentElement.style.setProperty('--cell-size', boardSize===3 ? '110px' : (boardSize===4 ? '90px' : '76px'));
+  boardEl.style.gridTemplateColumns = `repeat(${boardSize}, var(--cell-size))`;
+  // build win-lines dynamic
+  const lines = WIN_LINES; // already computed
+  // compute winner
+  const w = winner(board);
+  let winningLine = null;
+  if (w && w !== 'Draw'){
+    for (let line of lines){
+      const [a,...rest] = line;
+      if (board[a] && line.every(i=>board[i] === board[a])) { winningLine = line; break; }
+    }
+  }
+  boardEl.innerHTML = '';
+  // animation: fade in board once
+  if (initial){
+    boardEl.style.opacity = 0;
+    boardEl.style.transform = 'translateY(18px)';
+    setTimeout(()=>{ boardEl.style.opacity = 1; boardEl.style.transform = 'translateY(0)'; }, 60);
+  } else {
+    boardEl.style.opacity = 1;
+    boardEl.style.transform = 'translateY(0)';
+  }
+
+  // Visual pattern detection: mark "almost" lines (k-1 of same + empty)
+  const almostSet = new Set();
+  for (let line of lines){
+    const vals = line.map(i=>board[i]);
+    // count human or ai almost
+    [human, ai].forEach(p=>{
+      const countP = vals.filter(v=>v===p).length;
+      const countEmpty = vals.filter(v=>v===null).length;
+      if (countP === winLen - 1 && countEmpty === 1){
+        // mark empty cell as almost for that player only if opponent isn't already winning
+        const idx = line.find(i=>board[i]===null);
+        if (p === human){
+          almostSet.add(idx);
+        }
+      }
+    });
+  }
+
+  board.forEach((v,i)=>{
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.setAttribute('role','button');
+    cell.setAttribute('aria-label', `Cell ${i+1}`);
+    // X/O element with simple draw animation (class xo)
+    const span = document.createElement('div');
+    span.className = 'xo';
+    span.textContent = v || '';
+    if (v) span.classList.add('visible');
+    cell.appendChild(span);
+
+    // win highlight
+    if (winningLine && winningLine.includes(i)) cell.classList.add('win-cell');
+    // draw highlight
+    if (w === 'Draw') cell.classList.add('draw-cell');
+    // almost hint
+    if (almostSet.has(i) && !v && !w) cell.classList.add('almost');
+
+    if (v || w) cell.classList.add('disabled');
+    cell.addEventListener('click', ()=> onCellClick(i));
+    boardEl.appendChild(cell);
+  });
+}
+
+/* -----------------------------
+   Game rules
+   ----------------------------- */
+function winner(b){
+  // returns 'X' or 'O' or 'Draw' or null
+  for (let line of WIN_LINES){
+    const first = b[line[0]];
+    if (first && line.every(i=>b[i] === first)) return first;
+  }
+  if (b.every(x=>x)) return 'Draw';
+  return null;
+}
+
+/* evaluate (for minimax) -- heuristic for non-terminal */
+function evaluate(b){
+  const w = winner(b);
+  if (w === ai) return 1000;
+  if (w === human) return -1000;
+  // heuristic: number of almost lines for AI - for human
+  let score = 0;
+  for (let line of WIN_LINES){
+    const vals = line.map(i=>b[i]);
+    const aiCount = vals.filter(x=>x===ai).length;
+    const huCount = vals.filter(x=>x===human).length;
+    const empty = vals.filter(x=>x===null).length;
+    if (aiCount>0 && huCount===0) score += Math.pow(10, aiCount);
+    if (huCount>0 && aiCount===0) score -= Math.pow(10, huCount);
+  }
+  return score;
+}
+
+/* -----------------------------
+   Minimax with alpha-beta + depth limit
+   ----------------------------- */
+function minimaxRoot(depthLimit=6){
+  // return best index for AI
+  const maximizing = true;
+  const avail = board.map((v,i)=>v?null:i).filter(x=>x!==null);
+  let bestScore = -Infinity, bestIdx = null;
+  for (let idx of avail){
+    board[idx] = ai;
+    const score = minimaxRec(board, depthLimit-1, false, -Infinity, Infinity);
+    board[idx] = null;
+    if (score > bestScore){ bestScore = score; bestIdx = idx; }
+  }
+  return bestIdx;
+}
+
+function minimaxRec(b, depth, maximizingPlayer, alpha, beta){
+  const w = winner(b);
+  if (w === ai) return 10000 + depth; // prefer faster win
+  if (w === human) return -10000 - depth;
+  if (depth <= 0) return evaluate(b);
+  const avail = b.map((v,i)=>v?null:i).filter(x=>x!==null);
+  if (maximizingPlayer){
+    let maxEval = -Infinity;
+    for (let idx of avail){
+      b[idx] = ai;
+      const evalV = minimaxRec(b, depth-1, false, alpha, beta);
+      b[idx] = null;
+      if (evalV > maxEval) maxEval = evalV;
+      alpha = Math.max(alpha, evalV);
+      if (beta <= alpha) break;
+    }
+    return maxEval;
+  } else {
+    let minEval = Infinity;
+    for (let idx of avail){
+      b[idx] = human;
+      const evalV = minimaxRec(b, depth-1, true, alpha, beta);
+      b[idx] = null;
+      if (evalV < minEval) minEval = evalV;
+      beta = Math.min(beta, evalV);
+      if (beta <= alpha) break;
+    }
+    return minEval;
+  }
+}
+
+/* AI choose move (based on difficulty & board size) */
+function aiChooseMove(){
+  // for small boards hard => full-ish search; for larger, limit depth
+  if (difficulty === 'easy'){
+    const avail = board.map((v,i)=>v?null:i).filter(x=>x!==null);
+    return avail[Math.floor(Math.random()*avail.length)];
+  } else if (difficulty === 'medium'){
+    if (Math.random()<0.6) {
+      return minimaxRoot(boardSize<=3?8:6);
+    } else {
+      const avail = board.map((v,i)=>v?null:i).filter(x=>x!==null);
+      return avail[Math.floor(Math.random()*avail.length)];
+    }
+  } else {
+    // hard
+    return minimaxRoot(boardSize<=3?10:7);
+  }
+}
+
+/* -----------------------------
+   Game flow: human move / AI move
+   ----------------------------- */
+function onCellClick(i){
+  if (gameOver) return;
+  if (board[i]) return;
+  if (current !== human) return;
+  makeMove(human, i);
+}
+
+function makeMove(player, idx, isAuto=false){
+  if (gameOver) return;
+  if (board[idx]) return;
+  board[idx] = player;
+  moveHistory.push({player, idx, auto: !!isAuto});
+  // vibration on move
+  try { if (navigator.vibrate) navigator.vibrate(30); } catch(e){}
+  // switch
+  current = (player === 'X') ? 'O' : 'X';
+  renderBoard();
+  updateStatus();
+  resetTimer(); // reset timer when a move made
+  // check terminal
+  const w = winner(board);
+  if (w){
+    gameOver = true;
+    handleGameOver(w);
+  } else {
+    // if next is AI, schedule AI move shortly
+    if (current === ai){
+      setTimeout(()=> {
+        // if timer mode ticks out while thinking, still do move
+        const move = aiChooseMove();
+        makeMove(ai, move);
+      }, 260 + Math.random()*220); // small human-like delay
+    }
+  }
+}
+
+/* -----------------------------
+   Timer (4 seconds per move)
+   ----------------------------- */
+function resetTimer(){
+  clearInterval(timerInterval);
+  timerRemaining = timerDuration;
+  timerProgress.style.width = '100%';
+  timerLabel.textContent = `${Math.round(timerRemaining)}s`;
+  if (gameOver) { timerProgress.style.width = '0%'; return; }
+  timerInterval = setInterval(()=>{
+    timerRemaining -= 0.1;
+    if (timerRemaining < 0) timerRemaining = 0;
+    const pct = Math.max(0, (timerRemaining / timerDuration) * 100);
+    timerProgress.style.width = pct + '%';
+    timerLabel.textContent = Math.ceil(timerRemaining) + 's';
+    if (timerRemaining <= 0){
+      clearInterval(timerInterval);
+      // auto move for current player
+      if (!gameOver){
+        // If human timed out we auto-play for human (could be treated as loss optionally)
+        if (current === human){
+          // pick best move for human? to be fair pick random
+          const avail = board.map((v,i)=>v?null:i).filter(x=>x!==null);
+          const move = avail.length ? avail[Math.floor(Math.random()*avail.length)] : null;
+          if (move !== null) makeMove(human, move, true);
+        } else {
+          // AI timeout -> AI moves
+          const move = aiChooseMove();
+          if (move !== null && move !== undefined) makeMove(ai, move, true);
+        }
+      }
+    }
+  }, 100);
+}
+
+/* -----------------------------
+   Game over handling
+   ----------------------------- */
+function handleGameOver(w){
+  clearInterval(timerInterval);
+  renderBoard();
+  if (w === 'Draw'){
+    statusEl.textContent = "It's a draw!";
+    miniStatus.textContent = "Draw";
+    stats.draw++;
+    stats.games++;
+    currentStreak = 0;
+    playParticles('draw');
+  } else {
+    statusEl.textContent = w + " wins!";
+    miniStatus.textContent = w + " wins";
+    if (w === human){ stats.human++; currentStreak++; bestStreak = Math.max(bestStreak, currentStreak); }
+    else { stats.ai++; currentStreak = 0; }
+    stats.games++;
+    playParticles('win');
+    try { if (navigator.vibrate) navigator.vibrate([60,40,90]); } catch(e){}
+  }
+  saveStats();
+  updateLeaderboard();
+}
+
+/* -----------------------------
+   Undo & Full Undo
+   ----------------------------- */
+document.getElementById('undoBtn').addEventListener('click', ()=>{
+  if (!moveHistory.length || gameOver) return;
+  // Undo only last human move (and if AI responded after it, undo that too for fairness)
+  // find last human move index
+  for (let i=moveHistory.length-1;i>=0;i--){
+    if (moveHistory[i].player === human){
+      // remove this and any moves after it (usually AI reply)
+      const removed = moveHistory.splice(i);
+      // reconstruct board from history
+      board = Array(boardSize*boardSize).fill(null);
+      for (let m of moveHistory) board[m.idx] = m.player;
+      current = human;
+      gameOver = false;
+      renderBoard();
+      resetTimer();
+      updateStatus();
+      return;
+    }
+  }
+});
+
+document.getElementById('fullUndoBtn').addEventListener('click', ()=>{
+  // clear entire history and start fresh with same settings
+  moveHistory = [];
+  board = Array(boardSize*boardSize).fill(null);
+  current = 'X';
+  gameOver = false;
+  renderBoard();
+  resetTimer();
+  updateStatus();
+});
+
+/* -----------------------------
+   Replay functionality
+   ----------------------------- */
+function startReplay(){
+  if (!moveHistory.length) return;
+  isReplaying = true;
+  replayIndex = 0;
+  board = Array(boardSize*boardSize).fill(null);
+  renderBoard();
+  updateStatus();
+  // step through moves every 700ms
+  replayTimer = setInterval(()=>{
+    if (replayIndex >= moveHistory.length){
+      stopReplay();
+      return;
+    }
+    const mv = moveHistory[replayIndex++];
+    board[mv.idx] = mv.player;
+    renderBoard();
+  }, 700);
+}
+
+function stopReplay(){
+  isReplaying = false;
+  if (replayTimer) clearInterval(replayTimer);
+}
+
+document.getElementById('replayPlay').addEventListener('click', ()=> {
+  stopReplay();
+  startReplay();
+});
+document.getElementById('replayPause').addEventListener('click', ()=> {
+  stopReplay();
+});
+document.getElementById('replayStep').addEventListener('click', ()=> {
+  if (!moveHistory.length) return;
+  stopReplay();
+  if (replayIndex >= moveHistory.length) { replayIndex = 0; board = Array(boardSize*boardSize).fill(null); }
+  const mv = moveHistory[replayIndex++];
+  board[mv.idx] = mv.player;
+  renderBoard();
+});
+
+/* -----------------------------
+   Leaderboard (localStorage)
+   ----------------------------- */
+function saveStats(){
+  try { localStorage.setItem('ttt_stats_v2', JSON.stringify({stats, bestStreak})); } catch(e){}
+}
+function loadStats(){
+  try {
+    const raw = localStorage.getItem('ttt_stats_v2');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      stats = parsed.stats || stats;
+      bestStreak = parsed.bestStreak || bestStreak;
+    }
+  } catch(e){}
+  updateLeaderboard();
+}
+function updateLeaderboard(){
+  const el = document.getElementById('leaderboard');
+  el.innerHTML = `
+    <div class="small">Wins: ${stats.human} — AI: ${stats.ai} — Draws: ${stats.draw}</div>
+    <div class="small muted">Games: ${stats.games}</div>
+  `;
+  document.getElementById('bestStreak').textContent = bestStreak;
+}
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+  stats = {human:0, ai:0, draw:0, games:0};
+  bestStreak = 0;
+  saveStats();
+  updateLeaderboard();
+});
+
+/* -----------------------------
+   Particles for win/draw
+   ----------------------------- */
+let particles = [];
+function resizeFX(){
+  fxCanvas.width = window.innerWidth;
+  fxCanvas.height = window.innerHeight;
+}
+function playParticles(type='win'){
+  // spawn bunch of particles from center of board
+  const rect = boardEl.getBoundingClientRect();
+  const cx = rect.left + rect.width/2;
+  const cy = rect.top + rect.height/2;
+  const count = (type==='draw'? 40 : 90);
+  for (let i=0;i<count;i++){
+    particles.push({
+      x: cx, y: cy,
+      vx: (Math.random()-0.5)*8, vy: (Math.random()-0.9)*8,
+      life: 80 + Math.random()*40,
+      size: 4 + Math.random()*8,
+      hue: type==='draw' ? 50 + Math.random()*40 : 150 + Math.random()*100,
+    });
+  }
+  requestAnimationFrame(renderParticles);
+}
+function renderParticles(){
+  fxCtx.clearRect(0,0,fxCanvas.width, fxCanvas.height);
+  for (let p of particles){
+    p.x += p.vx; p.y += p.vy; p.life -= 2;
+    fxCtx.beginPath();
+    fxCtx.fillStyle = `hsla(${p.hue}, 90%, 60%, ${Math.max(0, p.life/120)})`;
+    fxCtx.arc(p.x, p.y, p.size*(p.life/120), 0, Math.PI*2);
+    fxCtx.fill();
+  }
+  particles = particles.filter(p=>p.life>0);
+  if (particles.length) requestAnimationFrame(renderParticles);
+}
+
+/* -----------------------------
+   UI: starters and interactions
+   ----------------------------- */
+document.getElementById('startBtn').addEventListener('click', ()=>{
+  boardSize = parseInt(document.getElementById('boardSize').value);
+  winLen = boardSize === 3 ? 3 : (boardSize === 4 ? 4 : 4); // for 5x5, 4-in-row win gives good play — change to 5 if you want 5
+  human = document.getElementById('humanSymbol').value;
+  ai = human === 'X' ? 'O' : 'X';
+  difficulty = document.getElementById('difficulty').value;
+  // build WIN_LINES
+  const lines = makeWinLines(boardSize, winLen);
+  WIN_LINES.length = 0; lines.forEach(l=>WIN_LINES.push(l)); // mutate constant array
+  resetBoard();
+  statusEl.textContent = `Game started — ${boardSize}×${boardSize} — ${difficulty}`;
+  miniStatus.textContent = 'Playing';
+  // if AI starts (X starts by default)
+  current = 'X';
+  if (current === ai){
+    setTimeout(()=> {
+      const move = aiChooseMove();
+      makeMove(ai, move);
+    }, 300);
+  }
+  resetTimer();
+  renderBoard(true);
+});
+
+/* initial small render */
+(function init(){
+  // precompute for 3x3
+  const lines3 = makeWinLines(3,3);
+  lines3.forEach(l=>WIN_LINES.push(l));
+  boardSize = 3; winLen = 3;
+  resetBoard();
+  renderBoard(true);
+  updateLeaderboard();
+})();
+
+function updateStatus(){
+  if (gameOver) return;
+  statusEl.textContent = (current === human) ? "Your turn" : "AI thinking...";
+  document.getElementById('miniStatus').textContent = statusEl.textContent;
+}
+
+/* -----------------------------
+   Speech recognition (voice commands)
+   ----------------------------- */
+document.getElementById('voiceBtn').addEventListener('click', toggleVoice);
+function toggleVoice(){
+  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+    alert('Speech API not supported in this browser');
+    return;
+  }
+  if (!voiceActive) startRecognition();
+  else stopRecognition();
+}
+function startRecognition(){
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRecognition();
+  recognition.lang = 'en-US';
+  recognition.interimResults = false;
+  recognition.continuous = true;
+  recognition.onresult = (e) => {
+    const txt = e.results[e.results.length-1][0].transcript.trim().toLowerCase();
+    handleVoiceCommand(txt);
+  };
+  recognition.onerror = (e) => { console.error('speech err', e); };
+  recognition.onend = ()=>{ if (voiceActive) recognition.start(); };
+  recognition.start();
+  voiceActive = true;
+  document.getElementById('voiceBtn').textContent = 'Voice (on)';
+}
+function stopRecognition(){
+  if (recognition) recognition.stop();
+  voiceActive = false;
+  document.getElementById('voiceBtn').textContent = 'Voice';
+}
+function handleVoiceCommand(text){
+  console.log('voice:', text);
+  // common phrases to positions
+  const posMap = {
+    'top left': 0, 'top middle': 1, 'top center':1, 'top right':2,
+    'middle left': boardSize>3? boardSize : boardSize + 0, // we will compute
+    'center': Math.floor((boardSize*boardSize)/2),
+    'middle': Math.floor((boardSize*boardSize)/2),
+    'bottom left': (boardSize*(boardSize-1)),
+    'bottom middle': (boardSize*(boardSize-1))+1,
+    'bottom center': (boardSize*(boardSize-1))+1,
+    'bottom right': (boardSize*boardSize)-1
+  };
+  // special commands
+  if (text.includes('start')) document.getElementById('startBtn').click();
+  else if (text.includes('undo')) document.getElementById('undoBtn').click();
+  else if (text.includes('replay')) document.getElementById('replayPlay').click();
+  else {
+    // try to map to cell
+    // for flexible parsing, check words
+    const words = text.split(/\s+/);
+    // detect row: top/middle/bottom and col: left/center/right
+    const rows = {top:0, middle:1, center:1, bottom:2};
+    const cols = {left:0, center:1, middle:1, right:2};
+    let row=null, col=null;
+    for (let w of words){
+      if (rows[w] !== undefined) row = rows[w];
+      if (cols[w] !== undefined) col = cols[w];
+    }
+    if (row !== null && col !== null){
+      // map to index for current board size (map to n x n)
+      // for larger boards, map top-left etc to edges
+      const r = Math.min(boardSize-1, row === 1 ? Math.floor(boardSize/2) : (row===0?0:boardSize-1));
+      const c = Math.min(boardSize-1, col === 1 ? Math.floor(boardSize/2) : (col===0?0:boardSize-1));
+      const idx = r*boardSize + c;
+      onCellClick(idx);
+    } else {
+      // try direct numbers like "one", "two" etc or "cell 5"
+      const m = text.match(/cell\s*(\d+)/);
+      if (m){ const i = parseInt(m[1],10)-1; if (i>=0 && i<board.length) onCellClick(i); }
+    }
+  }
+}
+
+/* -----------------------------
+   Helpers: load/save + misc
+   ----------------------------- */
+function loadStats(){ try {
+  const raw = localStorage.getItem('ttt_stats_v2');
+  if (raw){ const parsed = JSON.parse(raw); stats = parsed.stats || stats; bestStreak = parsed.bestStreak || bestStreak; }
+} catch(e){} }
+function saveStats(){ try { localStorage.setItem('ttt_stats_v2', JSON.stringify({stats, bestStreak})); } catch(e){} }
+
+/* -----------------------------
+   Export/Import / accessibility helpers
+   ----------------------------- */
+/* nothing else for now */
+
+</script>
+</body>
+</html>
